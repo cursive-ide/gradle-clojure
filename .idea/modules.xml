@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gradle-clojure.iml" filepath="$PROJECT_DIR$/.idea/modules/gradle-clojure.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gradle-clojure_main.iml" filepath="$PROJECT_DIR$/.idea/modules/gradle-clojure_main.iml" group="gradle-clojure" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gradle-clojure_test.iml" filepath="$PROJECT_DIR$/.idea/modules/gradle-clojure_test.iml" group="gradle-clojure" />
+    </modules>
+  </component>
+</project>
