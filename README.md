@@ -41,6 +41,9 @@ compileTestClojure {
 testClojure {
   // Standard JVM execution options here for test process
   systemProperty 'java.awt.headless', true
+  // Specifying junitReport will trigger JUnit XML report generation
+  // in addition to standard console output (turned off by default)
+  junitReport = file("$buildDir/reports/junit-report.xml")
 }
 ```
 

@@ -411,6 +411,7 @@ open class ClojureTestRunner @Inject constructor(val fileResolver: FileResolver)
 
   var classpath: FileCollection = SimpleFileCollection()
   var namespaces: Collection<String> = emptyList()
+  var junitReport: File? = null
 
   @TaskAction
   fun test() {
@@ -424,11 +425,13 @@ open class ClojureTestRunner @Inject constructor(val fileResolver: FileResolver)
 
     logger.info("Testing " + namespaces.joinToString(", "))
 
-    val namespaceList = namespaces.map { "'$it" }.joinToString(" ")
-    val script = listOf("(require 'clojure.test $namespaceList)",
-                        "(let [summary (clojure.test/run-tests $namespaceList)]",
-                        "  (System/exit (+ (:fail summary) (:error summary))))")
-        .joinToString("\n")
+    val namespaceVec = namespaces.joinToString(" ", "'[", "]")
+    val runnerInvocation = if (junitReport != null)
+      """(run-tests $namespaceVec "${junitReport?.absolutePath}")"""
+    else
+      """(run-tests $namespaceVec)"""
+
+    val script = "$testRunnerScript\n$runnerInvocation"
 
     //    println(script)
 
@@ -452,5 +455,10 @@ open class ClojureTestRunner @Inject constructor(val fileResolver: FileResolver)
     exec.setArgs(listOf("-i", file.canonicalPath))
 
     exec.build().start().waitForFinish().assertNormalExitValue()
+  }
+
+  companion object {
+    val testRunnerScript =
+            ClojureTestRunner::class.java.getResourceAsStream("/cursive/test_runner.clj").bufferedReader().use { it.readText() }
   }
 }
