@@ -6,7 +6,7 @@ A deliberately minimal Gradle plugin for Clojure compilation and test running.
 
 ```groovy
 plugins {
-  id "com.cursive-ide.clojure" version "1.0.1"
+  id "com.cursive-ide.clojure" version "1.1.0"
 }
 
 compileClojure {
