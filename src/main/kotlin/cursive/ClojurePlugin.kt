@@ -193,6 +193,10 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
   var copySourceToOutput: Boolean? = null
   var reflectionWarnings = ReflectionWarnings(false, false, false)
 
+  var disableLocalsClearing: Boolean = false
+  var elideMeta: Collection<String> = emptyList()
+  var directLinking: Boolean = false
+
   var namespaces: Collection<String> = emptyList()
 
   fun reflectionWarnings(configureClosure: Closure<Any?>?): ReflectionWarnings {
@@ -225,7 +229,10 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
 
       val script = listOf("(try",
                           "  (binding [*compile-path* \"${destinationDir.canonicalPath}\"",
-                          "            *warn-on-reflection* ${reflectionWarnings.enabled}]",
+                          "            *warn-on-reflection* ${reflectionWarnings.enabled}",
+                          "            *compiler-options* {:disable-locals-clearing $disableLocalsClearing",
+                          "                                :elide-meta [${elideMeta.map { ":$it" }.joinToString(" ")}]",
+                          "                                :direct-linking $directLinking}]",
                           "    " + namespaces.map { "(compile '$it)" }.joinToString("\n    ") + ")",
                           "  (catch Throwable e",
                           "    (.printStackTrace e)",

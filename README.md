@@ -20,6 +20,11 @@ compileClojure {
                                // If projectOnly is true, only warnings from your project are errors.
   }
 
+  // Compiler options for AOT
+  disableLocalsClearing = true                 // Defaults to false
+  elideMeta = ['doc', 'file', 'line', 'added'] // Defaults to []
+  directLinking = true                         // Defaults to false
+
   // compileClojure implements the standard JavaForkOptions interface, and thus supports the
   // standard Gradle mechanisms for configuring a Java process:
   // systemProperty systemProperties minHeapSize maxHeapSize
@@ -41,6 +46,7 @@ compileTestClojure {
 testClojure {
   // Standard JVM execution options here for test process
   systemProperty 'java.awt.headless', true
+
   // Specifying junitReport will trigger JUnit XML report generation
   // in addition to standard console output (turned off by default)
   junitReport = file("$buildDir/reports/junit-report.xml")
