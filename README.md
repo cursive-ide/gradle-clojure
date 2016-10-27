@@ -71,6 +71,11 @@ starts an nREPL server, or something similar.
    that Cursive can be used with Android Studio.
 2. Code execution support with project classpath.
 
+## Contributors ##
+
+* Colin Fleming ([@cmf](https://github.com/cmf), original author)
+* Piotrek Bzdyl ([@pbzdyl](https://github.com/pbzdyl))
+
 ## Licence ##
 
 Apache License, Version 2.0
