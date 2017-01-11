@@ -32,11 +32,14 @@ buildscript {
 
 group 'com.cursive-ide'
 version '1.1.0'
+ext.pluginId = 'com.cursive-ide.clojure'
+ext.pluginImplementationClass = 'cursive.ClojurePlugin'
 
 apply plugin: 'kotlin'
 apply plugin: 'groovy'
 apply plugin: 'maven'
 apply plugin: 'com.gradle.plugin-publish'
+apply plugin: "java-gradle-plugin"
 
 project.afterEvaluate {
   // Ugh, see https://discuss.gradle.org/t/kotlin-groovy-and-java-compilation/14903/9
@@ -55,6 +58,18 @@ dependencies {
   compile gradleApi()
   compile localGroovy()
   compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+  testCompile gradleTestKit()
+  testCompile "junit:junit:4.12"
+  testCompile 'net.wuerl.kotlin:assertj-core-kotlin:0.1.3'
+}
+
+gradlePlugin {
+  plugins {
+    clojurePlugin {
+      id = pluginId
+      implementationClass = pluginImplementationClass
+    }
+  }
 }
 
 pluginBundle {
@@ -65,7 +80,7 @@ pluginBundle {
 
   plugins {
     clojurePlugin {
-      id = 'com.cursive-ide.clojure'
+      id = pluginId
       displayName = 'Gradle Clojure plugin'
     }
   }

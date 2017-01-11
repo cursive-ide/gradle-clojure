@@ -34,6 +34,7 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.compile.AbstractCompile
 import org.gradle.api.tasks.incremental.IncrementalTaskInputs
+import org.gradle.api.tasks.incremental.InputFileDetails
 import org.gradle.process.JavaForkOptions
 import org.gradle.process.internal.DefaultJavaForkOptions
 import org.gradle.process.internal.ExecException
@@ -181,16 +182,18 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
     return reflectionWarnings
   }
 
-  @TaskAction
-  fun compile(inputs: IncrementalTaskInputs) {
-    compile()
+  override fun compile() {
+    throw UnsupportedOperationException()
   }
 
-  override fun compile() {
+  @TaskAction
+  fun compile(inputs: IncrementalTaskInputs) {
     logger.info("Starting ClojureCompile task")
 
-    destinationDir.deleteRecursively()
     destinationDir.mkdirs()
+
+    inputs.outOfDate { removeOutputFilesDerivedFromInputFile(it, destinationDir) }
+    inputs.removed { removeOutputFilesDerivedFromInputFile(it, destinationDir) }
 
     if (copySourceToOutput ?: !aotCompile) {
       project.copy {
@@ -269,6 +272,30 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
     }
   }
 
+  private fun removeOutputFilesDerivedFromInputFile(inputFileDetails: InputFileDetails, destinationDir: File) {
+    val sourceAbsoluteFile = inputFileDetails.file
+    if (isClojureSource(sourceAbsoluteFile)) {
+      logger.debug("Removing class files for {}", inputFileDetails.file)
+      val sourceCanonicalFileName = sourceAbsoluteFile.canonicalPath
+      val sourceFileRoot = getSourceRootsFiles()
+          .find { sourceCanonicalFileName.startsWith(it.canonicalPath) }
+          ?: throw IllegalStateException("No source root found for source file ${sourceAbsoluteFile}")
+      val sourceRelativeFile = sourceAbsoluteFile.relativeTo(sourceFileRoot)
+      val sourceRelativeDirectory = sourceRelativeFile.parentFile
+      val sourceFileName = sourceAbsoluteFile.nameWithoutExtension
+      destinationDir.resolve(sourceRelativeDirectory)
+          .listFiles { file -> file.name.startsWith(sourceFileName) }
+          ?.forEach {
+            logger.debug("Deleting derived file {}", it)
+            it.delete()
+          }
+    }
+  }
+
+  private fun  isClojureSource(file: File): Boolean {
+    return CLJ_EXTENSION_REGEX.matches(file.extension) && getSourceRoots().any { file.canonicalPath.startsWith(it) }
+  }
+
   private fun executeScript(script: String, stdout: OutputStream, stderr: OutputStream) {
     val file = createTempFile("clojure-compiler", ".clj", temporaryDir)
     file.bufferedWriter().use { out ->
@@ -281,7 +308,7 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
 
     // clojure.core/compile requires following on its classpath:
     // - libs (this.classpath)
-    // - compiled namespaces sources (getSourceRootsFiles)
+    // - namespaces sources to be compiled (getSourceRootsFiles)
     // - *compile-path* directory (this.destinationDir)
     exec.classpath = classpath + SimpleFileCollection(getSourceRootsFiles()) + SimpleFileCollection(destinationDir)
 
@@ -321,16 +348,15 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
   }
 
   private fun getSourceRoots(): HashSet<String> {
-    val roots = source
-        .filter { it is SourceDirectorySet }
-        .flatMap { (it as SourceDirectorySet).srcDirs }
+    return getSourceRootsFiles()
         .map { it.canonicalPath }
         .toHashSet()
-    return roots
   }
 
   private fun getSourceRootsFiles(): List<File> {
-    return getSourceRoots().map(::File)
+    return source
+        .filter { it is SourceDirectorySet }
+        .flatMap { (it as SourceDirectorySet).srcDirs }
   }
 
   companion object {
@@ -359,6 +385,7 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
                          '\\' to "_BSLASH_",
                          '?' to "_QMARK_")
 
+    val CLJ_EXTENSION_REGEX = "cljc?".toRegex()
     val DEMUNGE_MAP = CHAR_MAP.map { it.value to it.key }.toMap()
     val DEMUNGE_PATTERN = Pattern.compile(DEMUNGE_MAP.keys
                                               .sortedByDescending { it.length }

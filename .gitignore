@@ -5,6 +5,7 @@
 /.idea/shelf
 /.idea/libraries
 /.idea/modules
+/.idea/atlassian-ide-plugin.xml
 
 out
 dist
