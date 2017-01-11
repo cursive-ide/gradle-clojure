@@ -17,8 +17,7 @@
 package cursive
 
 import org.gradle.testkit.runner.GradleRunner
-import org.junit.Assert.assertEquals
-import org.junit.Assert.fail
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -54,35 +53,93 @@ open class IntegrationTestBase {
     return testProjectDir.resolve("build").walkTopDown().toList()
   }
 
-  fun assertSourceFileCopiedToOutputDir(sourceFile: File, sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"), destinationDir: File = testProjectDir.resolve("build/classes/main")) {
-    val expectedDestinationFile = destinationFileForSourceFile(sourceFile, sourceBaseDir, destinationDir)
-    if (!expectedDestinationFile.exists()) {
-      fail("Expected destination file doesn't exist for source file ${sourceFile}")
+  fun assertSourceFileCopiedToOutputDir(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")) {
+
+    val expectedOutputFile = outputFileForSourceFile(sourceFile, sourceBaseDir, outputDir)
+    if (!expectedOutputFile.exists()) {
+      fail("Expected output file doesn't exist for source file ${sourceFile}")
     }
     val sourceFileContents = sourceFile.readText()
-    val destinationFileContents = expectedDestinationFile.readText()
-    assertEquals("Source and destination files content", sourceFileContents, destinationFileContents)
+    val outputFileContents = expectedOutputFile.readText()
+    assertEquals("Source and output files content", sourceFileContents, outputFileContents)
   }
 
-  fun assertSourceFileCompiledToOutputDir(sourceFile: File, sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"), destinationDir: File = testProjectDir.resolve("build/classes/main")) {
-    val classFiles = compiledClassFilesForSourceFile(sourceFile, sourceBaseDir, destinationDir)
+  fun assertSourceFileCompiledToOutputDir(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")) {
+
+    val classFiles = compiledClassFilesForSourceFile(sourceFile, sourceBaseDir, outputDir)
     if (classFiles.isEmpty()) {
       fail("No compiled files have been found for source file ${sourceFile}")
     }
   }
 
-  fun destinationFileForSourceFile(sourceFile: File, sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"), destinationDir: File = testProjectDir.resolve("build/classes/main")): File {
-    val relativeSourceFile = sourceFile.relativeTo(sourceBaseDir)
-    val expectedDestinationFile = destinationDir.resolve(relativeSourceFile)
-    return expectedDestinationFile
+  fun assertSourceFileNotCopiedToOutputDir(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")) {
+
+    assertFalse(
+        "Source file exists in output dir",
+        outputFileForSourceFile(sourceFile, sourceBaseDir, outputDir).exists())
   }
 
-  fun compiledClassFilesForSourceFile(sourceFile: File, sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"), destinationDir: File = testProjectDir.resolve("build/classes/main")): List<File> {
+  fun assertSourceFileNotCompiledToOutputDir(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")) {
+
+    assertTrue(
+        "Compiled files exists in output dir",
+        compiledClassFilesForSourceFile(sourceFile, sourceBaseDir, outputDir).isEmpty())
+  }
+
+  fun assertSourceFileIsOnlyCopiedToOutputDir(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")) {
+
+    assertSourceFileCopiedToOutputDir(sourceFile, sourceBaseDir, outputDir)
+    assertSourceFileNotCompiledToOutputDir(sourceFile, sourceBaseDir, outputDir)
+  }
+
+  fun assertSourceFileIsOnlyCompiledToOutputDir(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")) {
+
+    assertSourceFileNotCopiedToOutputDir(sourceFile, sourceBaseDir, outputDir)
+    assertSourceFileCompiledToOutputDir(sourceFile, sourceBaseDir, outputDir)
+  }
+
+  fun outputFileForSourceFile(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")): File {
+
+    val relativeSourceFile = sourceFile.relativeTo(sourceBaseDir)
+    return outputDir.resolve(relativeSourceFile)
+  }
+
+  fun compiledClassFilesForSourceFile(
+      sourceFile: File,
+      sourceBaseDir: File = testProjectDir.resolve("src/main/clojure"),
+      outputDir: File = testProjectDir.resolve("build/classes/main")): List<File> {
+
     val relativeSourceFile = sourceFile.relativeTo(sourceBaseDir)
     val relativeSourceFileDir = relativeSourceFile.parentFile
     val sourceFileName = sourceFile.nameWithoutExtension
 
-    return destinationDir.resolve(relativeSourceFileDir).listFiles { file -> file.nameWithoutExtension.startsWith(sourceFileName) }?.toList() ?: Collections.emptyList()
+    return outputDir
+        .resolve(relativeSourceFileDir)
+        .listFiles { file ->
+          file.nameWithoutExtension.startsWith(sourceFileName) && file.extension == "class"}
+        ?.toList()
+        ?: Collections.emptyList()
   }
 
   private fun initTempDir(): TemporaryFolder {

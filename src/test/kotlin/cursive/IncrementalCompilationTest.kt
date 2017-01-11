@@ -30,16 +30,14 @@ class IncrementalCompilationTest : IntegrationTestBase() {
 
     // then
     assertThat(firstRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
-    println(firstRunResult.output)
-    assertSourceFileCopiedToOutputDir(coreNsSourceFile)
+    assertSourceFileIsOnlyCopiedToOutputDir(coreNsSourceFile)
 
     // when
     val secondRunResult = projectBuildRunner().withArguments("check").build()
 
     // then
     assertThat(secondRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.UP_TO_DATE)
-    println(secondRunResult.output)
-    assertSourceFileCopiedToOutputDir(coreNsSourceFile)
+    assertSourceFileIsOnlyCopiedToOutputDir(coreNsSourceFile)
   }
 
   @Test
@@ -52,16 +50,14 @@ class IncrementalCompilationTest : IntegrationTestBase() {
 
     // then
     assertThat(firstRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
-    println(firstRunResult.output)
-    assertSourceFileCompiledToOutputDir(coreNsSourceFile)
+    assertSourceFileIsOnlyCompiledToOutputDir(coreNsSourceFile)
 
     // when
     val secondRunResult = projectBuildRunner().withArguments("check").build()
 
     // then
     assertThat(secondRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.UP_TO_DATE)
-    println(secondRunResult.output)
-    assertSourceFileCompiledToOutputDir(coreNsSourceFile)
+    assertSourceFileIsOnlyCompiledToOutputDir(coreNsSourceFile)
   }
 
   @Test
@@ -74,9 +70,9 @@ class IncrementalCompilationTest : IntegrationTestBase() {
 
     // then
     assertThat(firstRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
-    println(firstRunResult.output)
-    assertSourceFileCopiedToOutputDir(coreNsSourceFile)
-    assertThat(destinationFileForSourceFile(utilsNsSourceFile).exists()).isFalse()
+    assertSourceFileIsOnlyCopiedToOutputDir(coreNsSourceFile)
+    assertSourceFileNotCopiedToOutputDir(utilsNsSourceFile)
+    assertSourceFileNotCompiledToOutputDir(utilsNsSourceFile)
 
     coreNsSourceFile.delete()
     utilsNsSourceFile.writeText("""(ns basic-project.utils) (defn ping [] "pong")""")
@@ -86,9 +82,9 @@ class IncrementalCompilationTest : IntegrationTestBase() {
 
     // then
     assertThat(secondRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
-    println(secondRunResult.output)
-    assertThat(destinationFileForSourceFile(coreNsSourceFile).exists()).isFalse()
-    assertSourceFileCopiedToOutputDir(utilsNsSourceFile)
+    assertSourceFileNotCopiedToOutputDir(coreNsSourceFile)
+    assertSourceFileNotCompiledToOutputDir(coreNsSourceFile)
+    assertSourceFileIsOnlyCopiedToOutputDir(utilsNsSourceFile)
   }
 
   @Test
@@ -102,9 +98,9 @@ class IncrementalCompilationTest : IntegrationTestBase() {
 
     // then
     assertThat(firstRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
-    println(firstRunResult.output)
     assertSourceFileCompiledToOutputDir(coreNsSourceFile)
-    assertThat(compiledClassFilesForSourceFile(utilsNsSourceFile)).isEmpty()
+    assertSourceFileNotCopiedToOutputDir(utilsNsSourceFile)
+    assertSourceFileNotCompiledToOutputDir(utilsNsSourceFile)
 
     coreNsSourceFile.delete()
     utilsNsSourceFile.writeText("""(ns basic-project.utils) (defn ping [] "pong")""")
@@ -114,8 +110,8 @@ class IncrementalCompilationTest : IntegrationTestBase() {
 
     // then
     assertThat(secondRunResult.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
-    println(secondRunResult.output)
-    assertThat(compiledClassFilesForSourceFile(coreNsSourceFile)).isEmpty()
-    assertSourceFileCompiledToOutputDir(utilsNsSourceFile)
+    assertSourceFileNotCopiedToOutputDir(coreNsSourceFile)
+    assertSourceFileNotCompiledToOutputDir(coreNsSourceFile)
+    assertSourceFileIsOnlyCompiledToOutputDir(utilsNsSourceFile)
   }
 }

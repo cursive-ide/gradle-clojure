@@ -28,7 +28,6 @@ class TestFailureFailsBuildTest : IntegrationTestBase() {
     val result = projectBuildRunner().withArguments("check").buildAndFail()
 
     // then
-    println(result.output)
     KotlinAssertions.assertThat(result.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
     KotlinAssertions.assertThat(result.task(":compileTestClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
     KotlinAssertions.assertThat(result.task(":testClojure").outcome).isEqualTo(TaskOutcome.FAILED)

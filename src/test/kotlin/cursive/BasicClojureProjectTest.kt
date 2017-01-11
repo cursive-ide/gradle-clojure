@@ -32,9 +32,10 @@ class BasicClojureProjectTest : IntegrationTestBase() {
     assertThat(result.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.task(":compileTestClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.task(":testClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
+
+    assertSourceFileIsOnlyCopiedToOutputDir(coreNsSourceFile)
+
     assertThat(result.output).contains("Generating message for World")
-    buildDirFiles().forEach { println(it) }
-    assertSourceFileCopiedToOutputDir(coreNsSourceFile)
   }
 
   @Test
@@ -49,7 +50,9 @@ class BasicClojureProjectTest : IntegrationTestBase() {
     assertThat(result.task(":compileClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.task(":compileTestClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.task(":testClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
+
+    assertSourceFileIsOnlyCompiledToOutputDir(coreNsSourceFile)
+
     assertThat(result.output).contains("Generating message for World")
-    assertSourceFileCompiledToOutputDir(coreNsSourceFile)
   }
 }
