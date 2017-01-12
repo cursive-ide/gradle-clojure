@@ -24,7 +24,7 @@ class BasicClojureProjectTest : IntegrationTestBase() {
   val coreNsSourceFile = testProjectDir.resolve("src/main/clojure/basic_project/core.clj")
 
   @Test
-  fun basicClojureProjectBuildNoAot() {
+  fun `Build without AOT only copies clj files to output directory`() {
     // when
     val result = projectBuildRunner().withArguments("check").build()
 
@@ -39,7 +39,7 @@ class BasicClojureProjectTest : IntegrationTestBase() {
   }
 
   @Test
-  fun basicClojureProjectBuildWithAot() {
+  fun `Build with AOT compiles to class files without copying clj files to output directory`() {
     // given
     projectGradleFile().appendText("compileClojure.aotCompile = true")
 

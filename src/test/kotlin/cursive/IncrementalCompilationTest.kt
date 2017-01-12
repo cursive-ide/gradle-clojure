@@ -24,7 +24,7 @@ class IncrementalCompilationTest : IntegrationTestBase() {
   val coreNsSourceFile = testProjectDir.resolve("src/main/clojure/basic_project/core.clj")
 
   @Test
-  fun incrementalCompileTaskUpToDateWhenNoChangesNoAot() {
+  fun `Incremental compile task without AOT is up-to-date when no input changes`() {
     // when
     val firstRunResult = projectBuildRunner().withArguments("check").build()
 
@@ -41,7 +41,7 @@ class IncrementalCompilationTest : IntegrationTestBase() {
   }
 
   @Test
-  fun incrementalCompileTaskUpToDateWhenNoChangesWithAot() {
+  fun `Incremental compile task with AOT is up-to-date when no input changes`() {
     // given
     projectGradleFile().appendText("compileClojure.aotCompile = true")
 
@@ -61,7 +61,7 @@ class IncrementalCompilationTest : IntegrationTestBase() {
   }
 
   @Test
-  fun incrementalCompileTaskExecutedWhenSourceFileChangedNoAot() {
+  fun `Incremental compile task without AOT processes outdated source files when input changes`() {
     // given
     val utilsNsSourceFile = testProjectDir.resolve("src/main/clojure/basic_project/utils.clj")
 
@@ -88,7 +88,7 @@ class IncrementalCompilationTest : IntegrationTestBase() {
   }
 
   @Test
-  fun incrementalCompileTaskExecutedWhenNewCljFileAddedWithAot() {
+  fun `Incremental compile task with AOT processes outdated source files when input changes`() {
     // given
     projectGradleFile().appendText("compileClojure.aotCompile = true")
     val utilsNsSourceFile = testProjectDir.resolve("src/main/clojure/basic_project/utils.clj")

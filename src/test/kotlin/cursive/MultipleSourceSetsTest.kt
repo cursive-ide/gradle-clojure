@@ -22,7 +22,7 @@ import org.junit.Test
 
 class MultipleSourceSetsTest : IntegrationTestBase()  {
   @Test
-  fun compilationWithMultipleSourceSets() {
+  fun `Compilation with multiple source sets`() {
     // given
     val ss1SourceDir = testProjectDir.resolve("src/ss1/clojure")
     val ss1CoreNsFile = ss1SourceDir.resolve("ss1/core.clj")

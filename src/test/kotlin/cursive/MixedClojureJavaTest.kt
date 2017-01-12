@@ -22,7 +22,7 @@ import org.junit.Test
 
 class MixedClojureJavaTest : IntegrationTestBase()  {
   @Test
-  fun compilationWithJavaCodeDependingOnClojureCode() {
+  fun `Compilation with Java code depending on Clojure code`() {
     // given
     val cljSourceDir = testProjectDir.resolve("src/cljSS/clojure")
     val cljExampleNsFile = cljSourceDir.resolve("cljSS/Example.clj")

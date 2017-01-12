@@ -23,7 +23,7 @@ import org.junit.Test
 
 class TestFailureFailsBuildTest : IntegrationTestBase() {
   @Test
-  fun testFailureFailsBuild() {
+  fun `testClojure task failure fails build`() {
     // when
     val result = projectBuildRunner().withArguments("check").buildAndFail()
 
