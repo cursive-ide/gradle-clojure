@@ -21,16 +21,17 @@ import org.gradle.testkit.runner.TaskOutcome
 import org.junit.Test
 
 class MixedJavaClojureTest : IntegrationTestBase() {
+  val javaOutputDir = testProjectDir.resolve("build/classes/javaSS")
+  val javaExample1SourceFile = testProjectDir.resolve("src/javaSS/java/javaSS/Example1.java")
+  val javaExample1ClassFile = javaOutputDir.resolve("javaSS/Example1.class")
+  val javaExample2ClassFile = javaOutputDir.resolve("javaSS/Example2.class")
+
+  val cljSourceDir = testProjectDir.resolve("src/cljSS/clojure")
+  val cljCoreNsFile = cljSourceDir.resolve("cljSS/core.clj")
+  val cljOutputDir = testProjectDir.resolve("build/classes/cljSS")
+
   @Test
   fun `Compilation with Clojure code depending on Java code`() {
-    // given
-    val javaOutputDir = testProjectDir.resolve("build/classes/javaSS")
-    val javaClassFile = javaOutputDir.resolve("javaSS/Example.class")
-
-    val cljSourceDir = testProjectDir.resolve("src/cljSS/clojure")
-    val cljCoreNsFile = cljSourceDir.resolve("cljSS/core.clj")
-    val cljOutputDir = testProjectDir.resolve("build/classes/cljSS")
-
     // when
     val result = projectBuildRunner().withArguments("compileCljSSClojure").build()
 
@@ -38,7 +39,58 @@ class MixedJavaClojureTest : IntegrationTestBase() {
     assertThat(result.task(":compileJavaSSJava").outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.task(":compileCljSSClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
 
-    assertThat(javaClassFile.exists()).isTrue()
+    assertThat(javaExample1ClassFile.exists()).isTrue()
+    assertThat(javaExample2ClassFile.exists()).isTrue()
     assertSourceFileIsOnlyCompiledToOutputDir(cljCoreNsFile, cljSourceDir, cljOutputDir)
+  }
+
+  @Test
+  fun `Incremental compilation with Clojure code depending on Java code when Java source unchanged`() {
+    // when
+    val firstResult = projectBuildRunner().withArguments("compileCljSSClojure").build()
+
+    // then
+    assertThat(firstResult.task(":compileJavaSSJava").outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(firstResult.task(":compileCljSSClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
+
+    assertThat(javaExample1ClassFile.exists()).isTrue()
+    assertThat(javaExample2ClassFile.exists()).isTrue()
+    assertSourceFileIsOnlyCompiledToOutputDir(cljCoreNsFile, cljSourceDir, cljOutputDir)
+
+    // when
+    val secondResult = projectBuildRunner().withArguments("compileCljSSClojure").build()
+
+    // then
+    println(secondResult.output)
+    assertThat(secondResult.task(":compileJavaSSJava").outcome).isEqualTo(TaskOutcome.UP_TO_DATE)
+    assertThat(secondResult.task(":compileCljSSClojure").outcome).isEqualTo(TaskOutcome.UP_TO_DATE)
+
+    assertThat(javaExample1ClassFile.exists()).isTrue()
+    assertThat(javaExample2ClassFile.exists()).isTrue()
+    assertSourceFileIsOnlyCompiledToOutputDir(cljCoreNsFile, cljSourceDir, cljOutputDir)
+  }
+
+  @Test
+  fun `Incremental compilation with Clojure code depending on Java code when Java source changes`() {
+    // when
+    val firstResult = projectBuildRunner().withArguments("compileCljSSClojure").build()
+
+    // then
+    assertThat(firstResult.task(":compileJavaSSJava").outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(firstResult.task(":compileCljSSClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
+
+    assertThat(javaExample1ClassFile.exists()).isTrue()
+    assertThat(javaExample2ClassFile.exists()).isTrue()
+    assertSourceFileIsOnlyCompiledToOutputDir(cljCoreNsFile, cljSourceDir, cljOutputDir)
+
+    // when
+    javaExample1SourceFile.delete()
+    val secondResult = projectBuildRunner().withArguments("compileCljSSClojure").buildAndFail()
+
+    // then
+    assertThat(secondResult.task(":compileJavaSSJava").outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(secondResult.task(":compileCljSSClojure").outcome).isEqualTo(TaskOutcome.FAILED)
+
+    assertThat(secondResult.output).contains("java.lang.ClassNotFoundException: javaSS.Example1")
   }
 }

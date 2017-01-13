@@ -15,7 +15,8 @@
 ;
 
 (ns cljSS.core
-  (:import javaSS.Example))
+  (:import (javaSS Example1 Example2)))
 
 (defn test []
-  (.test (Example.)))
+  (.test (Example1.))
+  (.test (Example2.)))

@@ -16,5 +16,7 @@
 
 (ns basic-project.core)
 
+(defprotocol ITest)
+
 (defn hello [name]
   (str "Hello " name))

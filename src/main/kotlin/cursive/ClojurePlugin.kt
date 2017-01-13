@@ -34,13 +34,13 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.compile.AbstractCompile
 import org.gradle.api.tasks.incremental.IncrementalTaskInputs
-import org.gradle.api.tasks.incremental.InputFileDetails
 import org.gradle.process.JavaForkOptions
 import org.gradle.process.internal.DefaultJavaForkOptions
 import org.gradle.process.internal.ExecException
 import org.gradle.process.internal.JavaExecHandleBuilder
 import org.gradle.util.ConfigureUtil
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
 import java.util.*
 import java.util.regex.Pattern
@@ -49,6 +49,7 @@ import javax.inject.Inject
 /**
  * @author Colin Fleming
  */
+@Suppress("unused")
 class ClojurePlugin : Plugin<Project> {
   val logger = Logging.getLogger(this.javaClass)
 
@@ -163,6 +164,12 @@ open class ClojureSourceSetImpl(displayName: String?, resolver: FileResolver?) :
 
 class ReflectionWarnings(var enabled: Boolean, var projectOnly: Boolean, var asErrors: Boolean)
 
+object FileCopyErrorHandler : (File, IOException) -> OnErrorAction {
+  override fun invoke(file: File, exception: IOException): OnErrorAction {
+    throw ExecException("Could not copy ${file} to output directory", exception)
+  }
+}
+
 open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
     AbstractCompile(),
     JavaForkOptions by DefaultJavaForkOptions(fileResolver) {
@@ -175,30 +182,38 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
   var elideMeta: Collection<String> = emptyList()
   var directLinking: Boolean = false
 
+  @Suppress("unused")
   var namespaces: Collection<String> = emptyList()
 
+  @Suppress("unused")
   fun reflectionWarnings(configureClosure: Closure<Any?>?): ReflectionWarnings {
     ConfigureUtil.configure(configureClosure, reflectionWarnings)
     return reflectionWarnings
   }
 
-  override fun compile() {
-    throw UnsupportedOperationException()
-  }
-
+  @Suppress("UNUSED_PARAMETER")
   @TaskAction
   fun compile(inputs: IncrementalTaskInputs) {
+    compile()
+  }
+
+  override fun compile() {
     logger.info("Starting ClojureCompile task")
 
-    destinationDir.mkdirs()
+    val tmpDestinationDir = temporaryDir.resolve("classes")
+    removeObsoleteClassFiles(destinationDir, tmpDestinationDir)
 
-    inputs.outOfDate { removeOutputFilesDerivedFromInputFile(it, destinationDir) }
-    inputs.removed { removeOutputFilesDerivedFromInputFile(it, destinationDir) }
+    if (!tmpDestinationDir.deleteRecursively()) {
+      throw ExecException("Could not delete ${tmpDestinationDir}")
+    }
+    tmpDestinationDir.mkdirs()
+    destinationDir.mkdirs()
 
     if (copySourceToOutput ?: !aotCompile) {
       project.copy {
-        it.from(getSource()).into(destinationDir)
+        it.from(getSource()).into(tmpDestinationDir)
       }
+      copyToDestination(tmpDestinationDir)
       return
     }
 
@@ -215,7 +230,7 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
       logger.info("Compiling " + namespaces.joinToString(", "))
 
       val script = listOf("(try",
-                          "  (binding [*compile-path* \"${destinationDir.canonicalPath}\"",
+                          "  (binding [*compile-path* \"${tmpDestinationDir.canonicalPath}\"",
                           "            *warn-on-reflection* ${reflectionWarnings.enabled}",
                           "            *compiler-options* {:disable-locals-clearing $disableLocalsClearing",
                           "                                :elide-meta [${elideMeta.map { ":$it" }.joinToString(" ")}]",
@@ -263,6 +278,8 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
 
       executeScript(script, stdout, stderr)
 
+      copyToDestination(tmpDestinationDir)
+
       if (libraryReflectionWarningCount > 0) {
         System.err.println("$libraryReflectionWarningCount reflection warnings from dependencies")
       }
@@ -272,28 +289,22 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
     }
   }
 
-  private fun removeOutputFilesDerivedFromInputFile(inputFileDetails: InputFileDetails, destinationDir: File) {
-    val sourceAbsoluteFile = inputFileDetails.file
-    if (isClojureSource(sourceAbsoluteFile)) {
-      logger.debug("Removing class files for {}", inputFileDetails.file)
-      val sourceCanonicalFileName = sourceAbsoluteFile.canonicalPath
-      val sourceFileRoot = getSourceRootsFiles()
-          .find { sourceCanonicalFileName.startsWith(it.canonicalPath) }
-          ?: throw IllegalStateException("No source root found for source file ${sourceAbsoluteFile}")
-      val sourceRelativeFile = sourceAbsoluteFile.relativeTo(sourceFileRoot)
-      val sourceRelativeDirectory = sourceRelativeFile.parentFile
-      val sourceFileName = sourceAbsoluteFile.nameWithoutExtension
-      destinationDir.resolve(sourceRelativeDirectory)
-          .listFiles { file -> file.name.startsWith(sourceFileName) }
-          ?.forEach {
-            logger.debug("Deleting derived file {}", it)
-            it.delete()
-          }
-    }
+  private fun copyToDestination(tmpDestinationDir: File) {
+    tmpDestinationDir.copyRecursively(target = destinationDir, overwrite = true, onError = FileCopyErrorHandler)
   }
 
-  private fun  isClojureSource(file: File): Boolean {
-    return CLJ_EXTENSION_REGEX.matches(file.extension) && getSourceRoots().any { file.canonicalPath.startsWith(it) }
+  private fun  removeObsoleteClassFiles(destinationDir: File, tmpDestinationDir: File) {
+    tmpDestinationDir.walkBottomUp().forEach {
+      val relativeFile = it.relativeTo(tmpDestinationDir)
+      val fileInDestination = destinationDir.resolve(relativeFile)
+      if (fileInDestination.exists()) {
+        if (fileInDestination.delete()) {
+          logger.debug("Deleted obsolete output file {}", fileInDestination)
+        } else {
+          logger.warn("Couldn't delete obsolete output file {}", fileInDestination)
+        }
+      }
+    }
   }
 
   private fun executeScript(script: String, stdout: OutputStream, stderr: OutputStream) {
@@ -385,7 +396,6 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
                          '\\' to "_BSLASH_",
                          '?' to "_QMARK_")
 
-    val CLJ_EXTENSION_REGEX = "cljc?".toRegex()
     val DEMUNGE_MAP = CHAR_MAP.map { it.value to it.key }.toMap()
     val DEMUNGE_PATTERN = Pattern.compile(DEMUNGE_MAP.keys
                                               .sortedByDescending { it.length }
@@ -394,6 +404,7 @@ open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
 
     val REFLECTION_WARNING_PREFIX = "Reflection warning, "
 
+    @Suppress("unused")
     fun munge(name: String): String {
       val sb = StringBuilder()
       for (c in name) {
@@ -431,7 +442,9 @@ open class ClojureTestRunner @Inject constructor(val fileResolver: FileResolver)
     ConventionTask(),
     JavaForkOptions by DefaultJavaForkOptions(fileResolver) {
 
+  @Suppress("unused")
   var classpath: FileCollection = SimpleFileCollection()
+  @Suppress("unused")
   var namespaces: Collection<String> = emptyList()
   var junitReport: File? = null
 

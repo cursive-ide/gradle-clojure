@@ -18,6 +18,7 @@ package cursive
 
 import org.assertj.core.api.KotlinAssertions.assertThat
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class IncrementalCompilationTest : IntegrationTestBase() {
@@ -113,5 +114,6 @@ class IncrementalCompilationTest : IntegrationTestBase() {
     assertSourceFileNotCopiedToOutputDir(coreNsSourceFile)
     assertSourceFileNotCompiledToOutputDir(coreNsSourceFile)
     assertSourceFileIsOnlyCompiledToOutputDir(utilsNsSourceFile)
+    assertFalse("Protocol class file doesn't exists", testProjectDir.resolve("build/classes/main/basic_project/core/ITest.class").exists())
   }
 }

@@ -18,6 +18,7 @@ package cursive
 
 import org.assertj.core.api.KotlinAssertions.assertThat
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BasicClojureProjectTest : IntegrationTestBase() {
@@ -52,6 +53,7 @@ class BasicClojureProjectTest : IntegrationTestBase() {
     assertThat(result.task(":testClojure").outcome).isEqualTo(TaskOutcome.SUCCESS)
 
     assertSourceFileIsOnlyCompiledToOutputDir(coreNsSourceFile)
+    assertTrue("Protocol class file exists", testProjectDir.resolve("build/classes/main/basic_project/core/ITest.class").exists())
 
     assertThat(result.output).contains("Generating message for World")
   }
