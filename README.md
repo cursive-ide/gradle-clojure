@@ -53,9 +53,11 @@ testClojure {
 }
 ```
 
-This plugin assumes you're using a sane layout for your Clojure code - namespaces corresponding
-to your source code layout, and one namespace per file. The plugin uses the filenames to 
-calculate the namespaces involved, it does not parse the files looking for `ns` forms.
+This plugin assumes you're using a sane layout for your Clojure code:
+  - namespaces corresponding to your source code layout 
+  - one namespace per file. 
+
+**Note:**  The plugin uses the filenames to calculate the namespaces involved, it does **not** parse the files looking for `ns` forms.
 
 This plugin currently only implements compilation and test running. More features may be added,
 but features provided by Gradle itself will not be (uberjarring, project publishing). I don't
