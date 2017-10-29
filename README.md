@@ -1,3 +1,7 @@
+# Deprecated #
+
+This plugin has been deprecated, and the development has been taken over by the fine folks over at the [gradle-clojure](https://github.com/gradle-clojure) org. You should use their plugin rather than this one.
+
 # gradle-clojure #
 
 A deliberately minimal Gradle plugin for Clojure compilation and test running.
