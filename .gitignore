@@ -1,11 +1,7 @@
-/.idea/workspace.xml
-/.idea/replstate.xml
-/.idea/inspectionProfiles/Project_Default.xml
-/.idea/dictionaries
-/.idea/shelf
-/.idea/libraries
-/.idea/modules
-
+.idea
+*.iml
+*.ipr
+*.iws
 out
 dist
 target
