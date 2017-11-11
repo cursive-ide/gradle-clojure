@@ -22,7 +22,6 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.SourceDirectorySet
 import org.gradle.api.internal.ConventionTask
-import org.gradle.api.internal.HasConvention
 import org.gradle.api.internal.file.FileResolver
 import org.gradle.api.internal.file.collections.SimpleFileCollection
 import org.gradle.api.internal.plugins.DslObject
@@ -34,12 +33,14 @@ import org.gradle.api.plugins.JavaPluginConvention
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.compile.AbstractCompile
+import org.gradle.api.tasks.incremental.IncrementalTaskInputs
 import org.gradle.process.JavaForkOptions
 import org.gradle.process.internal.DefaultJavaForkOptions
 import org.gradle.process.internal.ExecException
 import org.gradle.process.internal.JavaExecHandleBuilder
 import org.gradle.util.ConfigureUtil
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
 import java.util.*
 import java.util.regex.Pattern
@@ -48,65 +49,38 @@ import javax.inject.Inject
 /**
  * @author Colin Fleming
  */
+@Suppress("unused")
 class ClojurePlugin : Plugin<Project> {
   val logger = Logging.getLogger(this.javaClass)
 
   override fun apply(project: Project) {
     logger.info("Applying ClojurePlugin")
-    val javaBasePlugin = project.plugins.apply(JavaBasePlugin::class.java)
-    val javaPluginConvention = project.convention.getPlugin(JavaPluginConvention::class.java)
-
+    project.plugins.apply(JavaBasePlugin::class.java)
     project.plugins.apply(JavaPlugin::class.java)
 
-    val mainSourceSet = javaPluginConvention.sourceSets?.getByName(SourceSet.MAIN_SOURCE_SET_NAME)
-    if (mainSourceSet is HasConvention) {
-      val mainCompileTask = createCompileTask(project, mainSourceSet)
-      val conventionMapping = mainCompileTask.conventionMapping
-      conventionMapping.map("classpath", {
-        mainSourceSet.compileClasspath
-            .plus(SimpleFileCollection(mainSourceSet.allSource.srcDirs))
-            .plus(SimpleFileCollection(mainSourceSet.output.classesDir))
-      })
-      conventionMapping.map("namespaces", {
-        mainCompileTask.findNamespaces()
-      })
-    }
+    val javaPluginConvention = project.convention.getPlugin(JavaPluginConvention::class.java)
 
-    val testSourceSet = javaPluginConvention.sourceSets?.getByName(SourceSet.TEST_SOURCE_SET_NAME)
-    if (testSourceSet is HasConvention) {
-      val testCompileTask = createCompileTask(project, testSourceSet)
+    javaPluginConvention.sourceSets?.all { sourceSet ->
+      val compileTask = createClojureCompileTask(project, sourceSet)
 
-      val mainSrcDirs = mainSourceSet?.allSource?.srcDirs ?: emptyList<File>()
-      val testSrcDirs = testSourceSet.allSource.srcDirs
-      val outputDirs = if (mainSourceSet != null)
-        listOf(mainSourceSet.output.classesDir, testSourceSet.output.classesDir)
-      else
-        listOf(testSourceSet.output.classesDir)
 
-      val compileMapping = testCompileTask.conventionMapping
-      compileMapping.map("classpath", {
-        testSourceSet.compileClasspath
-            .plus(SimpleFileCollection(mainSrcDirs + testSrcDirs + outputDirs))
-      })
-      compileMapping.map("namespaces", {
-        testCompileTask.findNamespaces()
-      })
+      if (sourceSet.name == SourceSet.TEST_SOURCE_SET_NAME) {
+        val testTask = createTestTask(project)
 
-      val testTask = createTestTask(project)
+        val testTaskMapping = testTask.conventionMapping
+        testTaskMapping.map("classpath", {
+          sourceSet.runtimeClasspath
+        })
+        testTaskMapping.map("namespaces", {
+          compileTask.findNamespaces()
+        })
 
-      val testRunnerMapping = testTask.conventionMapping
-      testRunnerMapping.map("classpath", {
-        testSourceSet.runtimeClasspath.plus(SimpleFileCollection(mainSrcDirs + testSrcDirs + outputDirs))
-      })
-      testRunnerMapping.map("namespaces", {
-        testCompileTask.findNamespaces()
-      })
-
-      testTask.dependsOn(testCompileTask.name)
+        testTask.dependsOn(compileTask.name)
+      }
     }
   }
 
-  fun createCompileTask(project: Project, sourceSet: SourceSet): ClojureCompiler {
+  fun createClojureCompileTask(project: Project, sourceSet: SourceSet): ClojureCompile {
     val projectInternal = project as ProjectInternal
     val sourceRootDir: String = "src/${sourceSet.name}/clojure"
 
@@ -124,26 +98,32 @@ class ClojurePlugin : Plugin<Project> {
     sourceSet.resources?.filter?.exclude { clojureDirSet.contains(it.file) }
 
     val name = sourceSet.getCompileTaskName("clojure")
-    val compilerClass = ClojureCompiler::class.java
-    logger.info("Creating Clojure compile task $name with class $compilerClass")
-    val compile = project.tasks.create(name, compilerClass)
-    compile.description = "Compiles the $sourceSet Clojure code"
+    val clojureCompileClass = ClojureCompile::class.java
+    logger.info("Creating Clojure compile task $name with class $clojureCompileClass")
+    val clojureCompileTask = project.tasks.create(name, clojureCompileClass)
+    clojureCompileTask.description = "Compiles the $sourceSet Clojure code"
 
-    val javaTask = project.tasks.findByName(sourceSet.compileJavaTaskName)
-    if (javaTask != null) {
-      compile.dependsOn(javaTask.name)
+    val javaCompileTask = project.tasks.findByName(sourceSet.compileJavaTaskName)
+    if (javaCompileTask != null) {
+      clojureCompileTask.dependsOn(javaCompileTask.name)
     }
 
-    project.tasks.findByName(sourceSet.classesTaskName)?.dependsOn(compile.name)
+    project.tasks.findByName(sourceSet.classesTaskName)?.dependsOn(clojureCompileTask.name)
 
-    val conventionMapping = compile.conventionMapping
+    val conventionMapping = clojureCompileTask.conventionMapping
+    conventionMapping.map("classpath", {
+      sourceSet.compileClasspath
+    })
+    conventionMapping.map("namespaces", {
+      clojureCompileTask.findNamespaces()
+    })
     conventionMapping.map("destinationDir", {
       sourceSet.output.classesDir
     })
 
-    compile.source(clojureDirSet)
+    clojureCompileTask.source(clojureDirSet)
 
-    return compile
+    return clojureCompileTask
   }
 }
 
@@ -161,7 +141,6 @@ fun createTestTask(project: Project): ClojureTestRunner {
   return testRunner
 }
 
-
 interface ClojureSourceSet {
   fun getClojure(): SourceDirectorySet
   fun clojure(configureClosure: Closure<Any?>?): ClojureSourceSet
@@ -178,14 +157,20 @@ open class ClojureSourceSetImpl(displayName: String?, resolver: FileResolver?) :
   override fun getClojure(): SourceDirectorySet = clojure
 
   override fun clojure(configureClosure: Closure<Any?>?): ClojureSourceSet {
-    ApiFacade.configureByClosure(this, configureClosure)
+    ApiFacade.configureByClosure(clojure, configureClosure)
     return this
   }
 }
 
 class ReflectionWarnings(var enabled: Boolean, var projectOnly: Boolean, var asErrors: Boolean)
 
-open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
+object FileCopyErrorHandler : (File, IOException) -> OnErrorAction {
+  override fun invoke(file: File, exception: IOException): OnErrorAction {
+    throw ExecException("Could not copy ${file} to output directory", exception)
+  }
+}
+
+open class ClojureCompile @Inject constructor(val fileResolver: FileResolver) :
     AbstractCompile(),
     JavaForkOptions by DefaultJavaForkOptions(fileResolver) {
 
@@ -197,21 +182,38 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
   var elideMeta: Collection<String> = emptyList()
   var directLinking: Boolean = false
 
+  @Suppress("unused")
   var namespaces: Collection<String> = emptyList()
 
+  @Suppress("unused")
   fun reflectionWarnings(configureClosure: Closure<Any?>?): ReflectionWarnings {
     ConfigureUtil.configure(configureClosure, reflectionWarnings)
     return reflectionWarnings
   }
 
+  @Suppress("UNUSED_PARAMETER")
   @TaskAction
+  fun compile(inputs: IncrementalTaskInputs) {
+    compile()
+  }
+
   override fun compile() {
-    logger.info("Starting ClojureCompiler task")
+    logger.info("Starting ClojureCompile task")
+
+    val tmpDestinationDir = temporaryDir.resolve("classes")
+    removeObsoleteClassFiles(destinationDir, tmpDestinationDir)
+
+    if (!tmpDestinationDir.deleteRecursively()) {
+      throw ExecException("Could not delete ${tmpDestinationDir}")
+    }
+    tmpDestinationDir.mkdirs()
+    destinationDir.mkdirs()
 
     if (copySourceToOutput ?: !aotCompile) {
       project.copy {
-        it.from(getSource()).into(destinationDir)
+        it.from(getSource()).into(tmpDestinationDir)
       }
+      copyToDestination(tmpDestinationDir)
       return
     }
 
@@ -228,7 +230,7 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
       logger.info("Compiling " + namespaces.joinToString(", "))
 
       val script = listOf("(try",
-                          "  (binding [*compile-path* \"${destinationDir.canonicalPath}\"",
+                          "  (binding [*compile-path* \"${tmpDestinationDir.canonicalPath}\"",
                           "            *warn-on-reflection* ${reflectionWarnings.enabled}",
                           "            *compiler-options* {:disable-locals-clearing $disableLocalsClearing",
                           "                                :elide-meta [${elideMeta.map { ":$it" }.joinToString(" ")}]",
@@ -239,8 +241,6 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
                           "    (System/exit 1)))",
                           "(System/exit 0)")
           .joinToString("\n")
-
-      //    println(script)
 
       val stdout = object : LineProcessingOutputStream() {
         override fun processLine(line: String) {
@@ -278,11 +278,31 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
 
       executeScript(script, stdout, stderr)
 
+      copyToDestination(tmpDestinationDir)
+
       if (libraryReflectionWarningCount > 0) {
         System.err.println("$libraryReflectionWarningCount reflection warnings from dependencies")
       }
       if (reflectionWarnings.asErrors && reflectionWarningCount > 0) {
         throw ExecException("$reflectionWarningCount reflection warnings found")
+      }
+    }
+  }
+
+  private fun copyToDestination(tmpDestinationDir: File) {
+    tmpDestinationDir.copyRecursively(target = destinationDir, overwrite = true, onError = FileCopyErrorHandler)
+  }
+
+  private fun  removeObsoleteClassFiles(destinationDir: File, tmpDestinationDir: File) {
+    tmpDestinationDir.walkBottomUp().forEach {
+      val relativeFile = it.relativeTo(tmpDestinationDir)
+      val fileInDestination = destinationDir.resolve(relativeFile)
+      if (fileInDestination.exists()) {
+        if (fileInDestination.delete()) {
+          logger.debug("Deleted obsolete output file {}", fileInDestination)
+        } else {
+          logger.warn("Couldn't delete obsolete output file {}", fileInDestination)
+        }
       }
     }
   }
@@ -293,12 +313,16 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
       out.write("$script\n")
     }
 
-    //    println("Classpath: " + classpath.joinToString(", "))
-
     val exec = JavaExecHandleBuilder(fileResolver)
     copyTo(exec)
     exec.main = "clojure.main"
-    exec.classpath = classpath
+
+    // clojure.core/compile requires following on its classpath:
+    // - libs (this.classpath)
+    // - namespaces sources to be compiled (getSourceRootsFiles)
+    // - *compile-path* directory (this.destinationDir)
+    exec.classpath = classpath + SimpleFileCollection(getSourceRootsFiles()) + SimpleFileCollection(destinationDir)
+
     exec.setArgs(listOf("-i", file.canonicalPath))
     exec.defaultCharacterEncoding = "UTF8"
 
@@ -329,20 +353,21 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
     }
 
     val sources = getSource()
-    //    println("Sources: " + sources.joinToString(", "))
     val roots = getSourceRoots()
-    //    println("Roots: " + roots.joinToString(", "))
-    val namespaces = sources.map { findNamespace(it, roots) }.toList()
+    val namespaces = sources.map { findNamespace(it, roots) }
     return namespaces
   }
 
   private fun getSourceRoots(): HashSet<String> {
-    val roots = source
-        .filter { it is SourceDirectorySet }
-        .flatMap { (it as SourceDirectorySet).srcDirs }
+    return getSourceRootsFiles()
         .map { it.canonicalPath }
         .toHashSet()
-    return roots
+  }
+
+  private fun getSourceRootsFiles(): List<File> {
+    return source
+        .filter { it is SourceDirectorySet }
+        .flatMap { (it as SourceDirectorySet).srcDirs }
   }
 
   companion object {
@@ -379,6 +404,7 @@ open class ClojureCompiler @Inject constructor(val fileResolver: FileResolver) :
 
     val REFLECTION_WARNING_PREFIX = "Reflection warning, "
 
+    @Suppress("unused")
     fun munge(name: String): String {
       val sb = StringBuilder()
       for (c in name) {
@@ -416,7 +442,9 @@ open class ClojureTestRunner @Inject constructor(val fileResolver: FileResolver)
     ConventionTask(),
     JavaForkOptions by DefaultJavaForkOptions(fileResolver) {
 
+  @Suppress("unused")
   var classpath: FileCollection = SimpleFileCollection()
+  @Suppress("unused")
   var namespaces: Collection<String> = emptyList()
   var junitReport: File? = null
 
@@ -440,8 +468,6 @@ open class ClojureTestRunner @Inject constructor(val fileResolver: FileResolver)
 
     val script = "$testRunnerScript\n$runnerInvocation"
 
-    //    println(script)
-
     executeScript(script)
   }
 
@@ -452,8 +478,6 @@ open class ClojureTestRunner @Inject constructor(val fileResolver: FileResolver)
     }
 
     val classpath = conventionMapping.getConventionValue<FileCollection>(SimpleFileCollection(), "classpath", false)
-
-    //    println("Classpath: " + classpath.joinToString(", "))
 
     val exec = JavaExecHandleBuilder(fileResolver)
     copyTo(exec)
